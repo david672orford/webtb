@@ -1,4 +1,5 @@
 #! /bin/sh
+# Convert an SVG icon to PNG in a series of sizes
 # Example usage: svg2png-icon filename.svg 32 48 64
 svg="$1"
 shift 1
@@ -8,4 +9,3 @@ for size in $*
 	pngcrush -q .tmp.png `basename $svg .svg`-${size}x${size}.png
 	rm .tmp.png
 	done
-

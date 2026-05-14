@@ -1,6 +1,5 @@
 #! /usr/bin/python3
-# audacity2webvtt
-# Last modified: 21 August 2020
+# html-audacity2webvtt
 #
 # Copyright 2017--2020, Trinity College Computing Center
 # This file is part of the Hypertext Toolbox.
@@ -61,10 +60,11 @@ if __name__ == "__main__":
 	import sys
 
 	if len(sys.argv) < 2:
-		sys.stderr.write("%s <infile> <outfile.vtt> <track index> <padding>\n" % sys.argv[0])
+		sys.stderr.write("%s <infile.aup> <outfile.vtt> <track index> <padding>\n" % sys.argv[0])
 		sys.exit(1)
 
 	in_name = sys.argv[1]
+	assert in_name.endswith(".aup")
 	if len(sys.argv) < 3:
 		out_name = re.sub(r'\.[^\.]+$', ".vtt", in_name)
 	else:

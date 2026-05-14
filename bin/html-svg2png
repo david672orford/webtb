@@ -1,4 +1,7 @@
 #! /bin/sh
+# Convert an SVG file to PNG and run PNGCrush on it
+# Usage: html-svg2png [-o outdir] [filename...]
+
 set -u -e
 outdir="."
 if [ "$1" = "-o" ]

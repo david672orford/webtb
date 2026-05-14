@@ -1,6 +1,5 @@
 #! /usr/bin/python3 -E
 # xspf-youtube
-# Last modified: 18 October 2019
 #
 # This script adds Youtube videos to a playlist in Xspf (http://xspf.org/) format.
 #
@@ -17,9 +16,14 @@
 # https://github.com/Tyrrrz/YoutubeExplode
 #
 
-import sys, os, json, subprocess
+import sys
+import os
+import json
+import subprocess
 from urllib.request import urlopen
 from urllib.parse import urlparse, parse_qsl
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 from xspflib import Playlist, PlaylistItem
 
 # Use the API for the Youtube web player to get information about a video.

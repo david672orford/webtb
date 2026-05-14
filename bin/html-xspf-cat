@@ -1,8 +1,10 @@
 #! /usr/bin/python3 -B
 # xspf-cat
-# Last modified 10 April 2019
 
-import sys, os
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib"))
 from xspflib import Playlist
 
 assert sys.argv[1] == "-o"
