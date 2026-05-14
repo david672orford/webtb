@@ -1,49 +1,59 @@
 #! /usr/bin/python3
-# media-metadata
+# html-show-metadata
 # Print metadata from audio, video, raster image, and SVG files
-# Last modified: 9 June 2017
 
 import sys
 import os
-from PIL import Image
-from PIL.ExifTags import TAGS as ExifTags
-import lxml.etree as ET
 import re
 import subprocess
 import json
+
+from PIL import Image
+from PIL.ExifTags import TAGS as ExifTags
+import lxml.etree as ET
+import lxml.html
+
+def print_html_metadata(filename):
+	html = lxml.html.parse(filename)
+	head = html.xpath("./head")[0]
+	for meta in head.xpath("./meta"):
+		print(meta.attrib)
+	for script in head.xpath("./script[@type='application/ld+json']"):
+		schema_metadata = json.loads(script.text)
+		print(json.dumps(schema_metadata, indent=2))
 
 def print_audio_metadata(filename):
 	print_video_metadata(filename)
 
 def print_video_metadata(filename):
-	args = "/usr/bin/ffprobe -v quiet -print_format json -show_format -show_streams".split(" ")
+	args = "ffprobe -v quiet -print_format json -show_format -show_streams".split(" ")
 	args.append(filename)
 	ffprobe = subprocess.check_output(args).decode("utf-8")
 	#print(ffprobe)
 	ffprobe = json.loads(ffprobe)
-	print(" Duration: %s" % ffprobe['format']['duration'])
-	print(" File Size: %.1f MB" % (float(ffprobe['format']['size']) / 1024 / 1024))
-	print(" Total Bit Rate: %d kbps" % (int(ffprobe['format']['bit_rate']) / 1000))
-	for stream in ffprobe['streams']:
-		if stream['codec_type'] == 'video':
-			print(" Video Codec: %s" % stream['codec_name'])
-			print("  Profile: %s" % stream.get('profile',''))
-			print("  Aspect Ratio: %s" % stream['display_aspect_ratio'])
-			print("  Frame Size: %dx%d" % (stream['width'], stream['height']))
-			print("  Frame Rate: %s" % stream['avg_frame_rate'])
-			print("  Pixel Format: %s" % stream['pix_fmt'])
-			if 'bit_rate' in stream:
-				print("  Bit Rate: %d kbps" % (int(stream['bit_rate']) / 1000))
-				print("  BPP: %.2f" % (float(stream['bit_rate']) / (stream['width'] * stream['height']) / 30))
-	for stream in ffprobe['streams']:
-		if stream['codec_type'] == 'audio':
-			print(" Audio Codec: %s" % stream['codec_name'])
-			print("  Channels: %s" % stream['channels'])
-			print("  Sample Rate: %s" % stream['sample_rate'])
-			if 'bit_rate' in stream:
-				print("  Bit Rate: %d kbps" % (int(stream['bit_rate']) / 1000))
+	print(" Duration: %s" % ffprobe["format"]["duration"])
+	print(" File Size: %.1f MB" % (float(ffprobe["format"]["size"]) / 1024 / 1024))
+	print(" Total Bit Rate: %d kbps" % (int(ffprobe["format"]["bit_rate"]) / 1000))
+	for stream in ffprobe["streams"]:
+		if stream["codec_type"] == "video":
+			print(" Video Codec: %s" % stream["codec_name"])
+			print("  Profile: %s" % stream.get("profile",""))
+			print("  Aspect Ratio: %s" % stream["display_aspect_ratio"])
+			print("  Frame Size: %dx%d" % (stream["width"], stream["height"]))
+			print("  Frame Rate: %s" % stream["avg_frame_rate"])
+			print("  Pixel Format: %s" % stream["pix_fmt"])
+			if "bit_rate" in stream:
+				print("  Bit Rate: %d kbps" % (int(stream["bit_rate"]) / 1000))
+				print("  BPP: %.2f" % (float(stream["bit_rate"]) / (stream["width"] * stream["height"]) / 30))
+	for stream in ffprobe["streams"]:
+		if stream["codec_type"] == "audio":
+			print(" Audio Codec: %s" % stream["codec_name"])
+			print("  Channels: %s" % stream["channels"])
+			print("  Sample Rate: %s" % stream["sample_rate"])
+			if "bit_rate" in stream:
+				print("  Bit Rate: %d kbps" % (int(stream["bit_rate"]) / 1000))
 	print(" Tags:")
-	tags = ffprobe['format'].get('tags', {})
+	tags = ffprobe["format"].get("tags", {})
 	for name in sorted(tags.keys()):
 		print("  %s: %s" % (name, tags[name]))
 
@@ -88,12 +98,14 @@ def print_svg_metadata(filename):
 		source = metadata.xpath("./cc_Work/dc_source")
 		print("  Source: %s" % (source[0].text if source else "?"))
 		license = metadata.xpath("./cc_License")
-		print("  License: %s" % (license[0].attrib['rdf_about'] if license else "?"))
+		print("  License: %s" % (license[0].attrib["rdf_about"] if license else "?"))
 
 for filename in sys.argv[1:]:
 	print(filename)
 	extension = os.path.splitext(filename)[1]
-	if extension in (".wav", ".mp3", ".ogg"):
+	if extension == ".html":
+		print_html_metadata(filename)
+	elif extension in (".wav", ".mp3", ".ogg"):
 		print_audio_metadata(filename)
 	elif extension in (".mp4", ".webm", ".ts", ".avi", ".mkv"):
 		print_video_metadata(filename)
