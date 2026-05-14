@@ -1,9 +1,9 @@
 #! /usr/bin/python3
 # html-markdown
-# Experimental script to convert Markdown to HTML
 #
 # Python-Markdown (used here)
 #   https://github.com/Python-Markdown/markdown
+#   https://python-markdown.github.io/
 # Commonmark
 #   https://github.com/readthedocs/commonmark.py
 # Mistletoe
@@ -15,10 +15,11 @@
 import sys
 import os
 import re
+from functools import lru_cache
+
 from markdown import markdown
 from yaml import safe_load as load_yaml
 import jinja2
-from functools import lru_cache
 
 config_file = "html-markdown.conf"
 
@@ -31,14 +32,16 @@ class MetaData(dict):
 
 # Load site configuration
 site = MetaData()
-with open(config_file, mode="r", encoding="utf-8") as conf:
-	site.update(load_yaml(conf))
+
+if os.path.exists(config_file):
+	with open(config_file, mode="r", encoding="utf-8") as conf:
+		site.update(load_yaml(conf))
 
 if site.template_dir is None:
-	site.template_dir = os.path.join(os.path.dirname(config_file), site.templates_dir)
+	site.template_dir = os.path.join(os.path.dirname(config_file), "templates")
 
-# Intialize template engine
-template_env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=site.template_dir)))
+# Initialize template engine
+template_env = jinja2.Environment(loader=jinja2.FileSystemLoader(searchpath=site.template_dir))
 @lru_cache
 def load_template(template):
 	return template_env.get_template(template)
@@ -62,11 +65,18 @@ for filename in sys.argv[1:]:
 		content = text
 
 	# Convert markdown to HTML
-	content = markdown(content)
+	content = markdown(content, extensions=[
+		"md_in_html",	# markdown="1"
+		"attr_list",
+		"def_list",		# <dl>
+		"fenced_code",
+		"footnotes",
+		"tables",
+		])
 
 	# Load the template specified in this page's metadata or (if none
 	# is specified), the site's default template.
-	template = load_template(page.template or site.template)
+	template = load_template(page.template or site.template or "default.html")
 
 	# Insert the HTML (and the metadata) into the page template
 	html = template.render(site=site, page=page, content=content)
