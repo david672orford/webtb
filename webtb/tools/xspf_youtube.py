@@ -1,7 +1,6 @@
 """Add a Youtube video to an Xspf playlist"""
-#
 # Usage example:
-#  xspf-youtube playlist.xspf https://www.youtube.com/watch?v=C0DPdy98e4c
+#  webtb xspf-youtube playlist.xspf https://www.youtube.com/watch?v=C0DPdy98e4c
 #
 # This script ignores everything in the URL except the "v" parameter, so any Youtube
 # URL which will play the video will work including the video's Youtube page URL,
