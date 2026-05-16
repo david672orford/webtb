@@ -1,9 +1,8 @@
-#! /usr/bin/python3
-# html-show-metadata
-# Print metadata from audio, video, raster image, and SVG files
+"""Print metadata from audio, video, raster image, and SVG files"""
 
-import sys
+import argparse
 import os
+import sys
 import re
 import subprocess
 import json
@@ -100,19 +99,25 @@ def print_svg_metadata(filename):
 		license = metadata.xpath("./cc_License")
 		print("  License: %s" % (license[0].attrib["rdf_about"] if license else "?"))
 
-for filename in sys.argv[1:]:
-	print(filename)
-	extension = os.path.splitext(filename)[1]
-	if extension == ".html":
-		print_html_metadata(filename)
-	elif extension in (".wav", ".mp3", ".ogg"):
-		print_audio_metadata(filename)
-	elif extension in (".mp4", ".webm", ".ts", ".avi", ".mkv"):
-		print_video_metadata(filename)
-	elif extension in (".png", ".jpg"):
-		print_raster_metadata(filename)
-	elif extension == ".svg":
-		print_svg_metadata(filename)
-	else:
-		print("  File format not supported")
-
+def main(argv:list[str]) -> int:
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument("--verbose", action="store_true", help="Describe actions taken")
+	parser.add_argument("filenames", nargs="+", help="Files (or directories of files) to minimize")
+	opts = parser.parse_args(args=argv)
+	for filename in opts.filenames:
+		if opts.verbose:
+			print(f"{filename}")
+		extension = os.path.splitext(filename)[1]
+		if extension == ".html":
+			print_html_metadata(filename)
+		elif extension in (".wav", ".mp3", ".ogg"):
+			print_audio_metadata(filename)
+		elif extension in (".mp4", ".webm", ".ts", ".avi", ".mkv"):
+			print_video_metadata(filename)
+		elif extension in (".png", ".jpg"):
+			print_raster_metadata(filename)
+		elif extension == ".svg":
+			print_svg_metadata(filename)
+		else:
+			print(f"  File format not supported: {extension}", file=sys.stderr)
+	return 0

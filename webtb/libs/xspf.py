@@ -1,10 +1,8 @@
 # bin/xspflib.py
-# Last modified: 26 April 2019
-
 # References:
 # http://www.xspf.org/xspf-v1.html
 
-import lxml.etree
+import lxml.etree as ET
 from lxml.builder import E
 
 # A track in an XSPF playlist
@@ -34,11 +32,11 @@ class PlaylistItem(object):
 		self.duration = seconds * 1000
 
 	def as_element(self):
-		track = E.track()
+		track:ET._Element = E.track()
 		for el_name in self.elements:
 			value = getattr(self, el_name)
 			if value is not None:
-				el = lxml.etree.Element(el_name)
+				el = ET.Element(el_name)
 				el.text = str(value)
 				track.append(el)
 		return track
@@ -48,22 +46,21 @@ class PlaylistItem(object):
 class Playlist(list):
 	def __init__(self, filename=None):
 		if filename is not None:
-			parser = lxml.etree.XMLParser(remove_blank_text=True)
-			tree = lxml.etree.parse(filename, parser)
+			parser = ET.XMLParser(remove_blank_text=True)
+			tree = ET.parse(filename, parser)
 			tracklist = tree.getroot().xpath("./xspf:trackList", namespaces={"xspf":"http://xspf.org/ns/0/"})[0]
 			for track in tracklist:
 				self.append(PlaylistItem(track))
 
 	def save(self, filename):
-		tracklist = E.trackList()
+		tracklist:ET._Element = E.trackList()
 		for track in self:
 			tracklist.append(track.as_element())
 		playlist = E.playlist({'version':'1', 'xmlns':'http://xspf.org/ns/0/'}, tracklist)
-		output = lxml.etree.tostring(
+		output = ET.tostring(
 			playlist,
 			encoding='unicode',
 			pretty_print=True,
 			)
 		with open(filename, "w", encoding="utf-8") as fh:
 			fh.write(output)
-

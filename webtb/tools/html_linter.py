@@ -1,7 +1,4 @@
-#! /usr/bin/python3
-# html-style-checker
-# Copyright 2016--2021, Trinity College Computing Center
-# Last modified: 7 August 2021
+"""Test HTML files for conformance to requirements"""
 #
 # This script checks HTML files for conformance to style. In particular:
 # * That the charset is defined as utf-8 at the top of the <head>
@@ -10,7 +7,11 @@
 # * Local 'resources' actually exist
 # * Images have alt text
 #
+# TODO
+# * more easily configurable analytics-vX test
+# * should we keep the hide_nav test?
 
+import argparse
 import sys
 import os
 import lxml.html
@@ -26,37 +27,29 @@ from collections import Counter
 # http://lxml.de/lxmlhtml.html
 
 extension2mimetype = {
-	'txt':   'text/plain',
-	'html':  'text/html',
-	'xhtml': 'application/xhtml+xml',
-	'php':   'text/html',				# just a guess
-	'cgi':   'text/html',				# just a guess
-	'pdf':   'application/pdf',
-	'odt':   'application/vnd.oasis.opendocument.text',
-	'ogg':   'audio/ogg',
-	'mp3':   'audio/mpeg',
-	'webm':  'video/webm',
-	'mp4':   'video/mp4',
-	'svg':   'image/svg+xml',
-	'png':   'image/png',
-	'jpg':   'image/jpeg',
-	'epub':  'application/epub+zip',
+	"txt":   "text/plain",
+	"html":  "text/html",
+	"xhtml": "application/xhtml+xml",
+	"php":   "text/html",				# just a guess
+	"cgi":   "text/html",				# just a guess
+	"pdf":   "application/pdf",
+	"odt":   "application/vnd.oasis.opendocument.text",
+	"ogg":   "audio/ogg",
+	"mp3":   "audio/mpeg",
+	"webm":  "video/webm",
+	"mp4":   "video/mp4",
+	"svg":   "image/svg+xml",
+	"png":   "image/png",
+	"jpg":   "image/jpeg",
+	"epub":  "application/epub+zip",
 	}
-
-class Options(object):
-	debug = False
-	def set(self, option):
-		if option == "--debug":
-			self.debug = True
-		else:
-			raise AssertionError
 
 def check_html(filename, options):
 	base = os.path.dirname(filename)
 	root, head, body = open_doc(filename)
 
 	# Check <html> tag
-	if not 'lang' in root.attrib:
+	if not "lang" in root.attrib:
 		warning("html: no lang attribute")
 
 	# Check <head> tag and its <meta> children
@@ -66,7 +59,8 @@ def check_html(filename, options):
 	if head1.tag != "meta":
 		warning("First child of <head> is not <meta>")
 	else:
-		if head1.attrib.get("http-equiv","").lower() == "content-type" and re.match(r"text/html; *charset=utf-8", head1.attrib.get("content","")):
+		if head1.attrib.get("http-equiv","").lower() == "content-type" \
+				and re.match(r"text/html; *charset=utf-8", head1.attrib.get("content","")):
 			pass
 		elif not "charset" in head1.attrib:
 			warning("First <meta> does not specify charset")
@@ -78,7 +72,7 @@ def check_html(filename, options):
 	title_text = find_one(head, "title").text
 	if title_text is not None:
 		title_text_variants.add(title_text)
-		m = re.match(r'^[^:]+:\s(.+)$', title_text)
+		m = re.match(r"^[^:]+:\s(.+)$", title_text)
 		if m:
 			title_text_variants.add(m.group(1))
 			m = re.search(r"—(.+)$", m.group(1))	# without category name (which comes before em dash)
@@ -106,16 +100,16 @@ def check_html(filename, options):
 			print("  %s: %s" % (el.tag, str(el.attrib)))
 
 		if el.tag == "meta":
-			if 'name' in el.attrib:
-				meta_name_items[el.attrib['name']] = el.attrib.get('content')
-			if 'property' in el.attrib:
-				meta_opengraph_items[el.attrib['property']] = el.attrib.get('content')
+			if "name" in el.attrib:
+				meta_name_items[el.attrib["name"]] = el.attrib.get("content")
+			if "property" in el.attrib:
+				meta_opengraph_items[el.attrib["property"]] = el.attrib.get("content")
 
 		elif el.tag == "title":			# checked above
 			pass
-		
+
 		elif el.tag == "link":
-			href = el.attrib['href']
+			href = el.attrib["href"]
 			if not href:
 				warning("link: href lacking")
 			elif not url_is_remote(href):
@@ -130,7 +124,7 @@ def check_html(filename, options):
 					warning("link: stylesheet type is not specified: %s" % el.attrib.get("type"))
 				elif el.attrib["type"] != "text/css":
 					warning("link: stylesheet type is not text/css: %s" % el.attrib.get("type"))
-		
+
 		elif el.tag == "script":
 			if el.text is not None and len(el.text) < 100 and "hide_nav" in el.text:
 				if el.text != 'parent===window||(document.documentElement.className="hide_nav")':
@@ -141,11 +135,11 @@ def check_html(filename, options):
 		elif el.tag == "style":
 			if not "type" in el.attrib:
 				warning("style: lacks type attribute: %s" % str(el.attrib))
-			elif el.attrib['type'] != "text/css":
-				warning("style: type is not text/css: %s" % el.attrib['type'])
+			elif el.attrib["type"] != "text/css":
+				warning("style: type is not text/css: %s" % el.attrib["type"])
 
 		elif el.tag == "base":
-			href = el.attrib.get('href')
+			href = el.attrib.get("href")
 			if href is not None:
 				assert href.startswith(".")		# other possibilities not implemented yet
 				base = unquote(os.path.join(base, href))
@@ -168,7 +162,7 @@ def check_html(filename, options):
 	for el in body.findall(".//img"):
 		if options.debug:
 			print("  %s: %s" % (el.tag, str(el.attrib)))
-		src = el.attrib.get('src')
+		src = el.attrib.get("src")
 		if not src:
 			warning("img: lacks src attribute")
 		else:
@@ -182,20 +176,20 @@ def check_html(filename, options):
 						warning("img: src: odd quoting: %s" % src)
 				if not "type" in el.attrib:
 					warning("img: lacks type attribute: %s" % str(el.attrib))
-				elif not el.attrib['type'].startswith("image/"):
-					warning("img: type is not text/*: %s" % el.attrib['type'])
+				elif not el.attrib["type"].startswith("image/"):
+					warning("img: type is not text/*: %s" % el.attrib["type"])
 			if not "alt" in el.attrib:
-				id = el.attrib.get('id')
-				src = el.attrib.get('src')
+				id = el.attrib.get("id")
+				src = el.attrib.get("src")
 				if len(src) > 40:
 					src = src[:40] + "..."
 				warning("img: lacks alt attribute: %s %s" % (id, src))
-			elif el.attrib['alt'].strip() == "":
+			elif el.attrib["alt"].strip() == "":
 				warning("img: alt attribute has empty value")
 
 	# Check <a> tags in <body>
 	for el in body.findall(".//a"):
-		check_hyperlink(base, el)
+		check_hyperlink(base, el, options)
 
 	# Check <form> tags in <body>
 	for el in body.findall(".//form"):
@@ -229,27 +223,27 @@ def check_html(filename, options):
 
 	# If there is even one Opengraph tag, make sure all of the mandatory tags are present.
 	if(len(meta_opengraph_items)) > 0:
-		for og_item in ('og:site_name', 'og:type', 'og:title', 'og:image'):
+		for og_item in ("og:site_name", "og:type", "og:title", "og:image"):
 			if not og_item in meta_opengraph_items:
 				warning("Required Opengraph element missing: %s" % og_item)
 
-	if 'og:image' in meta_opengraph_items:
-		url = meta_opengraph_items['og:image']
+	if "og:image" in meta_opengraph_items:
+		url = meta_opengraph_items["og:image"]
 		if not local_url_is_good(base, url, full=True):
 			warning("og:image: not found: %s" % url)
 
 	# Unless robots have been told not to include this page in their indexes,
 	# check to see that it has descriptive meta tags.
-	robots = set([i.lower() for i in re.split(r'\s*,\s*', meta_name_items.get("robots",""))])
+	robots = set([i.lower() for i in re.split(r"\s*,\s*", meta_name_items.get("robots",""))])
 	if not "noindex" in robots:
-		if not 'description' in meta_name_items:
+		if not "description" in meta_name_items:
 			warning("no meta description")
-		if not 'keywords' in meta_name_items:
+		if not "keywords" in meta_name_items:
 			warning("no meta keywords")
-		if not 'BreadcrumbList' in script_counter and not 'WebSite' in script_counter:
+		if not "BreadcrumbList" in script_counter and not "WebSite" in script_counter:
 			warning("no Schema.org BreadcrumbList")
 
-	if not 'analytics' in script_counter:
+	if not "analytics" in script_counter:
 		warning("no analytics")
 
 def open_doc(filename, query=""):
@@ -286,8 +280,8 @@ def open_doc(filename, query=""):
 	return root, head, body
 
 # Make sure an <a> element conforms to our standards.
-def check_hyperlink(base, el):
-	href =  el.attrib.get('href')
+def check_hyperlink(base, el, options):
+	href =  el.attrib.get("href")
 	if href is None:
 		warning("a: no href")
 		return
@@ -297,7 +291,7 @@ def check_hyperlink(base, el):
 	if href.startswith("#"):					# FIXME: why not test?
 		return
 
-	parsed_url = urlparse(href)	
+	parsed_url = urlparse(href)
 	if parsed_url.scheme == "mailto":
 		return
 
@@ -312,8 +306,8 @@ def check_hyperlink(base, el):
 			pass
 		elif not "type" in el.attrib:
 			warning("a: link to %s file is lacking type attribute: %s" % (filename_ext.upper(), str(el.attrib)))
-		elif el.attrib['type'] != expected_mimetype:
-			warning("a: type of link to %s file is not %s: %s" % (filename_ext.upper(), expected_mimetype, el.attrib['type']))
+		elif el.attrib["type"] != expected_mimetype:
+			warning("a: type of link to %s file is not %s: %s" % (filename_ext.upper(), expected_mimetype, el.attrib["type"]))
 
 	# Tests after this we will perform only on our own URLs.
 	if url_is_remote(href):
@@ -381,7 +375,7 @@ def check_hyperlink(base, el):
 # Make sure a <script> tag is good.
 def check_script(el, base, counter):
 	assert el.tag == "script"
-	src = el.attrib.get('src')
+	src = el.attrib.get("src")
 	if src:
 		if not url_is_remote(src):
 			if not local_url_is_good(base, src):
@@ -389,7 +383,7 @@ def check_script(el, base, counter):
 			if not url_quoting_is_good(src):
 				warning("script: href: odd quoting: %s" % src)
 		if "/analytics-v" in src:
-			counter['analytics'] += 1
+			counter["analytics"] += 1
 			if not ".min." in src:
 				warning("script: analytics not minimized")
 			if not "-v4." in src:
@@ -397,20 +391,17 @@ def check_script(el, base, counter):
 			if not "async" in el.attrib:
 				warning("analytics not async")
 	if not "type" in el.attrib:
-		#if el.text == 'parent===window||(document.documentElement.className="hide_nav")':
-		#	pass
-		#else:
 		warning("script: lacks type attribute: %s" % str(el.attrib))
-	elif el.attrib['type'] == "text/javascript":
+	elif el.attrib["type"] == "text/javascript":
 		pass
-	elif el.attrib['type'] == "application/ld+json":
+	elif el.attrib["type"] == "application/ld+json":
 		data = json.loads(el.text)
 		for item in data if type(data) is list else (data,):
-			counter[item['@type']] += 1	
+			counter[item["@type"]] += 1
 	else:
-		warning("script: unexpected type: %s" % el.attrib['type'])
-	if 'href' in el.attrib:
-		if 'analytics' in el.attrib['href'] and not 'async' in el.atttrib:
+		warning("script: unexpected type: %s" % el.attrib["type"])
+	if "href" in el.attrib:
+		if "analytics" in el.attrib["href"] and not "async" in el.atttrib:
 			warning("script: analytics loaded without async")
 
 	return counter
@@ -418,7 +409,7 @@ def check_script(el, base, counter):
 # Make sure an <audio> or <video> tag is good.
 def check_player(el, base):
 	assert el.tag == "audio" or el.tag == "video"
-	src = el.attrib.get('src')
+	src = el.attrib.get("src")
 	if src:
 		if not url_is_remote(src):
 			if not local_url_is_good(base, src):
@@ -430,7 +421,7 @@ def check_player(el, base):
 		if not url_quoting_is_good(src):
 			warning("%s: src: odd quoting: %s" % (el.tag, src))
 
-	poster = el.attrib.get('poster')
+	poster = el.attrib.get("poster")
 	if poster and not url_is_remote(poster):
 		if not local_url_is_good(base, poster):
 			warning("%s: poster does not exist: %s" % (el.tag, poster))
@@ -438,13 +429,13 @@ def check_player(el, base):
 			warning("%s: poster: odd quoting: %s" % (el.tag, poster))
 
 	for el2 in el.findall(".//source"):
-		src = el2.attrib.get('src')
+		src = el2.attrib.get("src")
 		if src and not url_is_remote(src):
 			if not local_url_is_good(base, src):
 				warning("%s: src does not exist: %s" % (el2.tag, src))
 			if not url_quoting_is_good(src):
 				warning("%s: src: odd quoting: %s" % (el2.tag, src))
-		if not 'type' in el2.attrib:
+		if not "type" in el2.attrib:
 			warning("%s: lacks type attribute" % (el2.tag))
 
 # Does this URL include a domain?
@@ -543,14 +534,14 @@ def scan_document(base, parsed_url):
 	# Find any sections in the document and save their ID attributes
 	# as possible fragment identifiers.
 	for el in body.xpath(".//section") + body.xpath(".//footer"):
-		id = el.attrib.get('id')
+		id = el.attrib.get("id")
 		if id is not None:
 			fragments.add(id)
 
 	# Find spans which indicate subject index entries and add them
 	# as possible fragment identifiers too.
 	for el in body.xpath(".//span"):
-		id = el.attrib.get('id')
+		id = el.attrib.get("id")
 		if id is not None and id.startswith("idx"):
 			fragments.add(id)
 
@@ -584,16 +575,16 @@ def warning(message):
 		))
 
 # Test all the files named on the command line
-if __name__ == "__main__":
+def main(argv:list[str]) -> int:
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument("--debug", action="store_true", help="Print debugging info")
+	parser.add_argument("filenames", nargs="+", help="HTML files to check")
+	opts = parser.parse_args(args=argv)
 	try:
-		options = Options()
-		for filename in sys.argv[1:]:
-			if filename.startswith("--"):
-				options.set(filename)
-				continue
+		for filename in opts.filenames:
 			print(filename)
-			check_html(filename, options)
-	except HtmlError as e:
+			check_html(filename, opts)
+	except (HtmlError, FileNotFoundError) as e:
 		print("  Error: %s" % e)
-		sys.exit(1)
-
+		return 1
+	return 0

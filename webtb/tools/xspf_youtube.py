@@ -1,13 +1,9 @@
-#! /usr/bin/python3 -E
-# xspf-youtube
-# Last modified: 18 October 2019
-#
-# This script adds Youtube videos to a playlist in Xspf (http://xspf.org/) format.
+"""Add a Youtube video to an Xspf playlist"""
 #
 # Usage example:
 #  xspf-youtube playlist.xspf https://www.youtube.com/watch?v=C0DPdy98e4c
 #
-# This script ignores everything in the URL except the 'v' parameter, so any Youtube
+# This script ignores everything in the URL except the "v" parameter, so any Youtube
 # URL which will play the video will work including the video's Youtube page URL,
 # its embedding URL, and the short sharing URL's. The generated playlist entry will
 # always use the URL of the video's Youtube page.
@@ -17,10 +13,14 @@
 # https://github.com/Tyrrrz/YoutubeExplode
 #
 
-import sys, os, json, subprocess
+import argparse
+import os
+import json
+import subprocess
 from urllib.request import urlopen
 from urllib.parse import urlparse, parse_qsl
-from xspflib import Playlist, PlaylistItem
+
+from webtb.libs.xspf import Playlist, PlaylistItem
 
 # Use the API for the Youtube web player to get information about a video.
 # Note that this is not an official API and it sometimes changes.
@@ -34,11 +34,11 @@ class YoutubeVideoMetadata(object):
 		# The result is a URL-encoded dictionary
 		metadata = dict(parse_qsl(result_text.decode("ascii")))
 		#self.pretty_print("metadata", metadata)
-		assert metadata['status'] == "ok", "Youtube metadata request failed: {status}: {reason}".format_map(metadata)
+		assert metadata["status"] == "ok", "Youtube metadata request failed: {status}: {reason}".format_map(metadata)
 
 		# Within this dictionary is a JSON-encoded data structure which contains
 		# most all the information about the video
-		player_response = json.loads(metadata['player_response'])
+		player_response = json.loads(metadata["player_response"])
 		#self.pretty_print("player_response", player_response)
 
 		playabilityStatus = player_response["playabilityStatus"]
@@ -46,10 +46,10 @@ class YoutubeVideoMetadata(object):
 		assert playabilityStatus["playableInEmbed"], playabilityStatus
 
 		# Extract the metadata which we need for the xspf playlist
-		video_details = player_response['videoDetails']
-		self.title = video_details['title']
-		self.author = video_details['author']
-		self.length_seconds = int(video_details['lengthSeconds'])
+		video_details = player_response["videoDetails"]
+		self.title = video_details["title"]
+		self.author = video_details["author"]
+		self.length_seconds = int(video_details["lengthSeconds"])
 
 	def pretty_print(self, name, value):
 		print("%s: %s" % (name, json.dumps(value, indent=2, ensure_ascii=False)))
@@ -72,35 +72,32 @@ def get_video_ids(args):
 	for item in args:
 		if "://" in item:
 			params = url_query(item)
-			if 'list' in params:		# If URL of Youtube playlist
+			if "list" in params:		# If URL of Youtube playlist
 				playlist = json.loads(subprocess.check_output(("youtube-dl", "--flat-playlist", "--dump-single-json", item)))
-				for entry in playlist['entries']:
-					video_ids.append(entry['url'])
-			elif 'v' in params:	
-				video_ids.append(params['v'])
+				for entry in playlist["entries"]:
+					video_ids.append(entry["url"])
+			elif "v" in params:
+				video_ids.append(params["v"])
 			else:
 				raise AssertionError("Not a video or playlist URL")
 		else:
 			video_ids.append(item)
 	return video_ids
 
-def main(argv):
-	verify = False
-	if len(argv) >= 1 and argv[0] == "--verify":
-		verify = True
-		argv.pop(0)
+def main(argv:list[str]) -> int:
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument("--verbose", action="store_true", help="Describe actions taken")
+	parser.add_argument("--verify", action="store_true")
+	parser.add_argument("playlist", help="Playlist to which to add the videos")
+	parser.add_argument("urls", nargs="+", help="Youtube video URLs to add")
+	opts = parser.parse_args(args=argv)
 
-	if len(argv) < 1:
-		print("Usage: xspf-youtube <playlist> [youtube URL] ...\n")
-		return False
-
-	filename = argv.pop(0)
-	filename_exists = os.path.exists(filename)
-	if filename_exists:
-		print("Appending to playlist %s..." % filename)
+	playlist_exists = os.path.exists(opts.playlist)
+	if playlist_exists:
+		print("Appending to playlist %s..." % opts.playlist)
 	else:
-		print("Creating playlist %s..." % filename)
-	playlist = Playlist(filename if filename_exists else None)
+		print("Creating playlist %s..." % opts.playlist)
+	playlist = Playlist(opts.playlist if playlist_exists else None)
 
 	# For deduplication
 	video_urls = set()
@@ -109,24 +106,26 @@ def main(argv):
 	# If the --verify option is present, fetch the Youtube metadata of each
 	# to make sure they are still on Youtube.
 	for track in playlist:
-		if verify:
-			print(" %s" % track.location)
-			print("  Title: %s" % track.title)
-			print("  Channel: %s" % track.album)
-			print("  Duration: %s" % track.duration_seconds)
-			metadata = YoutubeVideoMetadata(url_query(track.location)['v'])
+		if opts.verify:
+			if opts.verbose:
+				print(" %s" % track.location)
+				print("  Title: %s" % track.title)
+				print("  Channel: %s" % track.album)
+				print("  Duration: %s" % track.duration_seconds)
+			metadata = YoutubeVideoMetadata(url_query(track.location)["v"])
 			metadata.print()
 		video_urls.add(track.location)
 
 	# Add new videos
 	changes = 0
-	for video_id in get_video_ids(argv):
-		video_url = 'https://www.youtube.com/watch?v=%s' % video_id
-		print(" +%s" % video_url)
+	for video_id in get_video_ids(opts.urls):
+		video_url = "https://www.youtube.com/watch?v=%s" % video_id
+		if opts.verbose:
+			print(" +%s" % video_url)
 		if video_url in video_urls:
-			print(" already present")
+			if opts.verbose:
+				print(" already present")
 			continue
-		params = ["v=%s" % video_id]
 		metadata = YoutubeVideoMetadata(video_id)
 		metadata.print()
 		track = PlaylistItem(
@@ -134,7 +133,7 @@ def main(argv):
 			album = metadata.author,
 			location = video_url,
 			annotation = "",
-			image = ('https://img.youtube.com/vi/%s/mqdefault.jpg' % video_id),
+			image = ("https://img.youtube.com/vi/%s/mqdefault.jpg" % video_id),
 			duration_seconds = metadata.length_seconds,
 			)
 		playlist.append(track)
@@ -142,9 +141,6 @@ def main(argv):
 		changes += 1
 
 	if changes > 0:
-		playlist.save(filename)
+		playlist.save(opts.playlist)
 
-	return True
-
-sys.exit(0 if main(sys.argv[1:]) else 1)
-
+	return 0

@@ -1,25 +1,4 @@
-#! /usr/bin/python3
-# html-video-encoder
-# Last modified: 23 February 2021
-#
-# Copyright 2017--2021, Trinity College Computing Center
-# This file is part of the Hypertext Toolbox.
-#
-# Hypertext Toolbox is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Hypertext Toolbox is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Hypertext Toolbox. If not, see <http://www.gnu.org/licenses/>.
-#
-
-#
+"""Convert videos to streamable formats"""
 # Required software:
 # * FFmpeg (apt install ffmpeg)
 # * MP4Box (apt install gpac)
@@ -77,45 +56,46 @@
 #  mp4a.40.5: HE-AAC
 #
 
+import argparse
 import sys
 import os
 import subprocess
 import json
 import re
 import urllib.parse
-from optparse import OptionParser
 import shlex
 import glob
+from typing import cast
 
 #=========================================================================
 # Utility
 #=========================================================================
 
-class VideoInfo(object):
-	def __init__(self, video_filename):
-		args = "ffprobe -v quiet -print_format json -show_format -show_streams".split(" ")
+class VideoInfo:
+	def __init__(self, video_filename:str):
+		args = cast(list[str], "ffprobe -v quiet -print_format json -show_format -show_streams".split(" "))
 		args.append(video_filename)
 		self.ffprobe = json.loads(subprocess.check_output(args).decode("utf-8"))
-		self.video_stream = self.ffprobe['streams'][0]
-		assert self.video_stream['codec_type'] == 'video'
+		self.video_stream = self.ffprobe["streams"][0]
+		assert self.video_stream["codec_type"] == "video"
 
 	def get_dimensions(self):
-		return (self.video_stream['width'], self.video_stream['height'])
+		return (self.video_stream["width"], self.video_stream["height"])
 
 	def get_bpp(self, frame_rate):
-		if 'bit_rate' in self.video_stream:
-			bit_rate = self.video_stream['bit_rate']
-		elif len(self.ffprobe['streams']) == 1:		# no audio
-			bit_rate = self.ffprobe['format']['bit_rate']
+		if "bit_rate" in self.video_stream:
+			bit_rate = self.video_stream["bit_rate"]
+		elif len(self.ffprobe["streams"]) == 1:		# no audio
+			bit_rate = self.ffprobe["format"]["bit_rate"]
 		else:
 			assert False, "bit_rate missing"
-		return (float(bit_rate) / (self.video_stream['width'] * self.video_stream['height']) / frame_rate)
-	
+		return (float(bit_rate) / (self.video_stream["width"] * self.video_stream["height"]) / frame_rate)
+
 	def get_duration(self):
-		return float(self.ffprobe['format']['duration'])	
+		return float(self.ffprobe["format"]["duration"])
 
 	def get_frame_rate(self):
-		frame_rate = self.video_stream['r_frame_rate']
+		frame_rate = self.video_stream["r_frame_rate"]
 		if frame_rate == "24/1":
 			return 24
 		if frame_rate == "24000/1001":
@@ -130,9 +110,10 @@ class VideoInfo(object):
 	def get_aspect_ratio(self):
 		return self.video_stream['display_aspect_ratio']
 
-def run(argv):
-	print("========================================================")
-	print(" ".join(map(shlex.quote, argv)))
+def run(argv, silent=False):
+	if not silent:
+		print("========================================================")
+		print(" ".join(map(shlex.quote, argv)))
 	subprocess.check_call(argv)
 
 #=========================================================================
@@ -140,7 +121,7 @@ def run(argv):
 # for HTTP streaming or for downloading.
 #=========================================================================
 
-def render_h264(video_filename, video_info, output_stem, crop, aspect_ratio):
+def render_h264(video_filename:str, video_info:VideoInfo, output_stem:str, crop, aspect_ratio, verbose:bool):
 	frame_rate = video_info.get_frame_rate()
 
 	if aspect_ratio == "16:9":
@@ -199,13 +180,17 @@ def render_h264(video_filename, video_info, output_stem, crop, aspect_ratio):
 		if height > crop[1]:
 			continue
 
-		print("========================================================")
-		print("= H264 %dx%d" % (width, height))
-		print("========================================================")
+		if verbose:
+			print("========================================================")
+			print("= H264 %dx%d" % (width, height))
+			print("========================================================")
 
 		# Pass 1--Figure out how complex this video is
 		test_filename = "%s %dx%d.test.mp4" % (output_stem, width, height)
-		argv = ["ffmpeg", "-hide_banner"]
+		argv = [
+			"ffmpeg",
+			"-hide_banner"
+			]
 		argv.extend(("-i", video_filename))
 		argv.extend(("-filter:v", "crop=%d:%d:%d:%d,scale=%dx%d" % (*crop, width, height)))
 		argv.extend(H264_VIDEO_OPTS)
@@ -223,7 +208,10 @@ def render_h264(video_filename, video_info, output_stem, crop, aspect_ratio):
 		hls_output_filename = "%s/%dx%d-%dk.m3u8" % (output_stem, width, height, (video_bitrate + audio_bitrate) / 1000)
 
 		# Pass 2--First ABR pass
-		argv = ["ffmpeg", "-hide_banner"]
+		argv = [
+			"ffmpeg",
+			"-hide_banner"
+			]
 		argv.extend(("-i", video_filename))
 		argv.extend(("-filter:v", "crop=%d:%d:%d:%d,scale=%dx%d" % (*crop, width, height)))
 		argv.extend(H264_VIDEO_OPTS)
@@ -233,9 +221,12 @@ def render_h264(video_filename, video_info, output_stem, crop, aspect_ratio):
 		argv.extend("-pass 1".split())
 		argv.extend("-f mp4 -y /dev/null".split())
 		run(argv)
-	
+
 		# Pass 3--Second ABR pass
-		argv = ["ffmpeg", "-hide_banner"]
+		argv = [
+			"ffmpeg",
+			"-hide_banner"
+			]
 		argv.extend(("-i", video_filename))
 		argv.extend(("-filter:v", "crop=%d:%d:%d:%d,scale=%dx%d" % (*crop, width, height)))
 		argv.extend(H264_VIDEO_OPTS)
@@ -251,7 +242,10 @@ def render_h264(video_filename, video_info, output_stem, crop, aspect_ratio):
 		run("MP4Box -inter 500".split() + [mp4_output_filename])
 
 		# Pass 4--Remux for HLS
-		argv = ["ffmpeg", "-hide_banner"]
+		argv = [
+			"ffmpeg",
+			"-hide_banner"
+			]
 		argv.extend(("-i", mp4_output_filename))
 		argv.extend("-c:v copy -c:a copy".split())
 		argv.extend("-movflags +faststart".split())
@@ -262,7 +256,7 @@ def render_h264(video_filename, video_info, output_stem, crop, aspect_ratio):
 
 		if not downloadable:
 			os.remove(mp4_output_filename)
-	
+
 	m3u8 = open("%s.m3u8" % output_stem, "w")
 	m3u8.write("#EXTM3U\n")
 	for width, height, bitrate, output_filename in hls_output_filenames:
@@ -283,7 +277,7 @@ def render_h264(video_filename, video_info, output_stem, crop, aspect_ratio):
 # VP9
 #=========================================================================
 
-def render_vp9(video_filename, video_info, output_stem, crop, aspect_ratio):
+def render_vp9(video_filename:str, video_info:VideoInfo, output_stem:str, crop, aspect_ratio, verbose:bool):
 	frame_rate = video_info.get_frame_rate()
 
 	if aspect_ratio == "16:9":
@@ -313,7 +307,7 @@ def render_vp9(video_filename, video_info, output_stem, crop, aspect_ratio):
 	# number of threads the encoder can utilize".
 	WEBM_VIDEO_OPTS1="""
 		-c:v libvpx-vp9
-		-pix_fmt yuv420p 
+		-pix_fmt yuv420p
 		-r {FRAME_RATE}
 		-aspect {ASPECT}
 		-keyint_min 150 -g 150
@@ -351,9 +345,10 @@ def render_vp9(video_filename, video_info, output_stem, crop, aspect_ratio):
 		if height > crop[1]:
 			continue
 
-		print("========================================================")
-		print("= Webm %dx%d" % (width, height))
-		print("========================================================")
+		if verbose:
+			print("========================================================")
+			print("= Webm %dx%d" % (width, height))
+			print("========================================================")
 
 		# Pass 1--Figure out how complex this video is
 		test_filename = "%s %dx%d.test.webm" % (output_stem, width, height)
@@ -444,7 +439,7 @@ def render_vp9(video_filename, video_info, output_stem, crop, aspect_ratio):
 		+ "id=1,streams=" + ",".join(map(lambda i: str(video_variants_count + i),range(len(DASH_AUDIO_BITRATES))))
 	argv.extend(("-adaptation_sets", adaptation_sets))
 	argv.append("%s.mpd" % output_stem)
-	run(argv)	
+	run(argv)
 
 	# Correct bad paths to the media segments
 	f = open("%s.mpd" % output_stem)
@@ -462,52 +457,66 @@ def render_vp9(video_filename, video_info, output_stem, crop, aspect_ratio):
 # Main
 #=========================================================================
 
-parser = OptionParser()
-parser.add_option("-o", action="store", dest="outdir", type="string", default=".")
-parser.add_option("--h264", action="store_true", dest="h264")
-parser.add_option("--vp9", action="store_true", dest="vp9")
-parser.add_option("--crop-to-4x3", action="store_true", dest="crop_to_4x3")
-(options, args) = parser.parse_args()
+def main(argv:list[str]) -> int:
 
-# Fail early if these programs are not available
-run(["MP4Box", "-version"])
-run(["ffmpeg", "-version"])
+	# TODO: Consider porting to argparse
+	# https://docs.python.org/3/library/argparse.html
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument("--verbose", action="store_true", help="Describe actions taken")
+	parser.add_argument("-o", "--outdir", default=".")
+	parser.add_argument("--h264", action="store_true")
+	parser.add_argument("--vp9", action="store_true")
+	parser.add_argument("--crop-to-4x3", action="store_true")
+	parser.add_argument("video_filenames", nargs="+")
+	opts = parser.parse_args(args=argv)
 
-for video_filename in args:
-	if not os.path.isfile(video_filename):
-		sys.stderr.write("No such file: %s\n" % video_filename)
-		sys.exit(5)
+	# Fail early if these programs are not available
+	try:
+		run(["MP4Box", "-version"], silent=True)
+		run(["ffmpeg", "-version"], silent=True)
+	except FileNotFoundError as e:
+		print(f"Missing dependences. Please install: {e.filename}", file=sys.stderr)
+		return 100
 
-for video_filename in args:
-	video_info = VideoInfo(video_filename)
-	width, height = video_info.get_dimensions()
-	print("Video size: %dx%d" % (width, height))
+	for video_filename in opts.video_filenames:
+		if not os.path.isfile(video_filename):
+			print(f"No such file: {video_filename}", file=sys.stderr)
+			return 5
 
-	aspect_ratio = video_info.get_aspect_ratio()
-	if not (aspect_ratio == "16:9" or aspect_ratio == "4:3"):
-		sys.stderr.write("Invalid or unacceptable aspect ratio: %s\n" % aspect_ratio)
-		sys.exit(10)
+	for video_filename in opts.video_filenames:
+		if opts.verbose:
+			print(f"{video_filename}")
+		video_info = VideoInfo(video_filename)
+		width, height = video_info.get_dimensions()
+		if opts.verbose:
+			print(" Video size: %dx%d" % (width, height))
 
-	# Determine the part of the frame which we should encode
-	# (width, height, x offset, y offset)
-	if aspect_ratio == "16:9" and options.crop_to_4x3:
-		if (width, height) == (1920, 1080):		# Full HD
-			crop = (1440, height, 240,0)		
-		elif (width, height) == (1280, 720):	# HD
-			crop = (960, height, 160,0)
+		aspect_ratio = video_info.get_aspect_ratio()
+		if not (aspect_ratio == "16:9" or aspect_ratio == "4:3"):
+			print(f"Invalid or unacceptable aspect ratio: {aspect_ratio}", file=sys.stderr)
+			return 10
+
+		# Determine the part of the frame which we should encode
+		# (width, height, x offset, y offset)
+		if aspect_ratio == "16:9" and opts.crop_to_4x3:
+			if (width, height) == (1920, 1080):		# Full HD
+				crop = (1440, height, 240,0)
+			elif (width, height) == (1280, 720):	# HD
+				crop = (960, height, 160,0)
+			else:
+				print(f"Unsupported video resolution: {width}x{height}", file=sys.stderr)
+				return 1
+			aspect_ratio = "4:3"
 		else:
-			sys.stderr.write("Unsupported video resolution: %dx%d\n" % (width, height))
-			sys.exit(1)
-		aspect_ratio = "4:3"
-	else:
-		crop = (width, height, 0, 0)
+			crop = (width, height, 0, 0)
 
-	basename = os.path.splitext(os.path.basename(video_filename))[0]
-	basename = re.sub(r'\s+\d+x\d+$', '', basename)
-	output_stem = "%s/%s" % (options.outdir, basename)
+		basename = os.path.splitext(os.path.basename(video_filename))[0]
+		basename = re.sub(r"\s+\d+x\d+$", "", basename)
+		output_stem = "%s/%s" % (opts.outdir, basename)
 
-	if options.h264:
-		render_h264(video_filename, video_info, output_stem, crop, aspect_ratio)
-	if options.vp9:
-		render_vp9(video_filename, video_info, output_stem, crop, aspect_ratio)
+		if opts.h264:
+			render_h264(video_filename, video_info, output_stem, crop, aspect_ratio, opts.verbose)
+		if opts.vp9:
+			render_vp9(video_filename, video_info, output_stem, crop, aspect_ratio, opts.verbose)
 
+	return 0

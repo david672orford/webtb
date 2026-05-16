@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Web File Toolbox"
+version = "0.1"
+description = "A multitool for file formats used on the WWW"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE.txt" }
+keywords = ["web", "www", "hypertext", "utils", "tools", "html", "svg"]
+authors = [{ name = "David Chappell", email = "chappell@trincoll.edu" }]
+maintainers = [{ name = "David Chappell", email = "chappell@trincoll.edu" }]
+# https://pypi.org/classifiers/
+classifiers = [
+	"Development Status :: 3 - Alpha",
+	"Environment :: Console",
+	"Topic :: Internet :: WWW/HTTP",
+	"Topic :: Multimedia :: Sound/Audio",
+	"Topic :: Multimedia :: Video",
+	"Topic :: Text Processing :: Markup :: HTML",
+	"Topic :: Text Processing :: Markup :: Markdown",
+	"License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+	"Programming Language :: Python :: 3.10",
+	"Programming Language :: Python :: 3.11",
+	"Programming Language :: Python :: 3.12",
+	"Programming Language :: Python :: 3 :: Only",
+	]
+dependencies = [
+	"lxml",
+	"scss",
+	"rcssmin",
+	"rjsmin",
+	"Pillow",
+	"jinja2",
+	"PyYAML",
+	"Markdown",
+	"jsbeautifier",
+	"cssbeautifier",
+	]
+
+[project.urls]
+"Homepage" = "https://github.com/david672orford/webtb"
+
+[project.scripts]
+webtb = "webtb:main"
+
