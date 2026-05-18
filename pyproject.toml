@@ -3,8 +3,8 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Web File Toolbox"
-version = "0.1"
+name = "webtb"
+version = "0.1.0"
 description = "A multitool for file formats used on the WWW"
 readme = "README.md"
 requires-python = ">=3.10"
